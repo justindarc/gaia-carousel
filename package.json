@@ -1,0 +1,30 @@
+{
+  "name": "gaia-carousel",
+  "version": "0.0.1",
+  "homepage": "https://github.com/gaia-components/gaia-carousel",
+  "license": "MPL 2.0",
+  "main": "gaia-carousel.js",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "devDependencies": {
+    "browserify": "^5.11.2",
+    "karma": "^0.12.16",
+    "karma-firefox-launcher": "^0.1.3",
+    "karma-mocha": "^0.1.3",
+    "karma-sinon-chai": "^0.1.6"
+  },
+  "scripts": {
+    "test": "./node_modules/karma/bin/karma start ./test/karma.conf.js --single-run",
+    "build": "mkdir -p ./dist && browserify gaia-carousel.js --outfile ./dist/gaia-carousel.js --standalone GaiaCarousel && mkdir -p ./example/components/gaia-carousel && cp -rf ./dist/gaia-carousel.js ./example/components/gaia-carousel/gaia-carousel.js",
+    "clean": "rm -rf ./dist && rm -rf ./example/components"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/gaia-components/gaia-carousel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gaia-components/gaia-carousel/issues"
+  }
+}
