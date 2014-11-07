@@ -121,8 +121,10 @@ function styleHack(carousel) {
 function configureDirection(carousel) {
   var direction = carousel.getAttribute('direction') === 'vertical' ?
     'vertical' : 'horizontal';
-  carousel.container.setAttribute('data-direction', direction);
-  carousel.direction = direction;
+  if (carousel.direction !== direction) {
+    carousel.container.setAttribute('data-direction', direction);
+    carousel.direction = direction;
+  }
 }
 
 /**
@@ -137,11 +139,22 @@ function configureItemCount(carousel) {
     return;
   }
 
-  if (itemCount !== carousel.itemCount) {
-    carousel.rendered = false;
+  if (carousel.itemCount !== itemCount) {
+    carousel.itemCount = itemCount;
   }
+}
 
-  carousel.itemCount = itemCount;
+/**
+ *
+ *
+ * @private
+ */
+function configureDisabled(carousel) {
+  var attribute = carousel.getAttribute('disabled');
+  var disabled = attribute !== null;
+  if (carousel.disabled !== disabled) {
+    carousel.disabled = disabled;
+  }
 }
 
 /**
@@ -157,7 +170,7 @@ function attachEventListeners(carousel) {
   var startAccelerateOffset;
 
   var onTouchStart = function(evt) {
-    if (carousel.scrolling) {
+    if (carousel.scrolling || carousel.disabled) {
       return;
     }
 
@@ -178,7 +191,7 @@ function attachEventListeners(carousel) {
   };
 
   var onTouchMove = function(evt) {
-    if (!carousel.scrolling) {
+    if (!carousel.scrolling || carousel.disabled) {
       return;
     }
 
@@ -294,6 +307,13 @@ function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
     }
 
     renderItem(carousel, container.firstElementChild, newItemIndex - 1);
+
+    carousel.dispatchEvent(new CustomEvent('willresetitem', {
+      detail: {
+        index: oldItemIndex,
+        element: container.lastElementChild
+      }
+    }));
   }
 
   // Move first element to the end
@@ -309,6 +329,13 @@ function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
     }
 
     renderItem(carousel, container.lastElementChild, newItemIndex + 1);
+
+    carousel.dispatchEvent(new CustomEvent('willresetitem', {
+      detail: {
+        index: oldItemIndex,
+        element: container.firstElementChild
+      }
+    }));
   }
 
   carousel.itemIndex = newItemIndex;
@@ -493,6 +520,9 @@ proto.attributeChangedCallback = function(attr, oldVal, newVal) {
     case 'item-count':
       configureItemCount(this);
       break;
+    case 'disabled':
+      configureDisabled(this);
+      break;
   }
 };
 
@@ -515,10 +545,14 @@ Object.defineProperty(proto, 'itemCount', {
   },
 
   set: function(value) {
+    if (this._itemCount === value) {
+      return;
+    }
+
     this._itemCount = value;
     this.setAttribute('item-count', this._itemCount);
 
-    if (!this.container || this.rendered) {
+    if (!this.container) {
       return;
     }
 
@@ -526,8 +560,29 @@ Object.defineProperty(proto, 'itemCount', {
     setTimeout(function() {
       renderItems(self);
     }, 1);
+  }
+});
 
-    this.rendered = true;
+// Disabled flag
+Object.defineProperty(proto, 'disabled', {
+  get: function() {
+    return this._disabled || false;
+  },
+
+  set: function(value) {
+    if (this._disabled === !!value) {
+      return;
+    }
+
+    this._disabled = !!value;
+    if (this._disabled) {
+      this.setAttribute('disabled', true);
+
+      this.scrollOffset = this.itemOffset;
+      updateScrollOffset(this);
+    } else {
+      this.removeAttribute('disabled');
+    }
   }
 });
 
