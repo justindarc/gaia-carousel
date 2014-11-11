@@ -1,6 +1,6 @@
 {
   "name": "gaia-carousel",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "homepage": "https://github.com/gaia-components/gaia-carousel",
   "license": "MPL 2.0",
   "main": "gaia-carousel.js",

@@ -32,10 +32,16 @@ suite('GaiaCarousel', function() {
     this.sandbox = sinon.sandbox.create();
     this.container = document.createElement('div');
     this.sandbox.spy(HTMLElement.prototype, 'addEventListener');
+    this.sandbox.spy(window, 'addEventListener');
   });
 
   teardown(function() {
     this.sandbox.restore();
+  });
+
+  test('It should listen for "resze" event on `window`', function() {
+    this.container.innerHTML = '<gaia-carousel></gaia-carousel>';
+    assert.ok(window.addEventListener.calledWith('resize'));
   });
 
   test('It should set `itemCount` to `0` (inline)', function() {
