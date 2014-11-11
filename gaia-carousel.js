@@ -280,9 +280,14 @@ function attachEventListeners(carousel) {
     }
   };
 
+  var onResize = function(evt) {
+    resetScrollOffset(carousel);
+  };
+
   // Attach event listeners
   shadowRoot.addEventListener('touchstart', onTouchStart);
   shadowRoot.addEventListener('mousedown', onTouchStart);
+  window.addEventListener('resize', onResize);
 }
 
 /**
@@ -458,6 +463,8 @@ function renderItems(carousel) {
   for (var i = 0; i <= 2; i++) {
     renderItem(carousel, itemContainers[i], carousel.itemIndex + i - 1);
   }
+
+  resetScrollOffset(carousel);
 }
 
 /**
