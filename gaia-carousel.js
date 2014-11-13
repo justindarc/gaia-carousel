@@ -7,7 +7,7 @@
 var ACCELERATION_TIMEOUT = 250;
 var ACCELERATION = 20;
 var MINIMUM_SNAP_VELOCITY = 5;
-var SNAP_ANIMATION_DURATION = 100;
+var SNAP_ANIMATION_DURATION = 150;
 
 /**
  * Locals
@@ -29,7 +29,17 @@ template.innerHTML =
   <div class="gaia-carousel-item-container"></div>
   <div class="gaia-carousel-item-container"></div>
   <div class="gaia-carousel-item-container"></div>
-</div>`;
+</div>
+<style scoped>
+  .gaia-carousel-container[data-direction="vertical"] > .gaia-carousel-item-container {
+    margin-bottom: 0;
+    margin-right: 0;
+  }
+  .gaia-carousel-item-container {
+    margin-bottom: 0;
+    margin-right: 0;
+  }
+</style>`;
 
 /**
  *
@@ -92,7 +102,7 @@ function styleHack(carousel) {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  transform: translateZ(0);
+  will-change: transform;
 }
 .gaia-carousel-item-container > * {
   width: 100%;
@@ -141,6 +151,23 @@ function configureItemCount(carousel) {
 
   if (carousel.itemCount !== itemCount) {
     carousel.itemCount = itemCount;
+  }
+}
+
+/**
+ *
+ *
+ * @private
+ */
+function configureItemPadding(carousel) {
+  var attribute = carousel.getAttribute('item-padding') || '';
+  var itemPadding = parseInt(attribute, 10);
+  if (itemPadding + '' !== attribute.trim()) {
+    return;
+  }
+
+  if (carousel.itemPadding !== itemPadding) {
+    carousel.itemPadding = itemPadding;
   }
 }
 
@@ -264,7 +291,7 @@ function attachEventListeners(carousel) {
         }
       }));
 
-      snapScrollOffset(carousel, itemOffset, SNAP_ANIMATION_DURATION, function() {
+      snapScrollOffset(carousel, SNAP_ANIMATION_DURATION, function() {
         carousel.dispatchEvent(new CustomEvent('changed', {
           detail: {
             oldItemIndex: oldItemIndex,
@@ -276,7 +303,7 @@ function attachEventListeners(carousel) {
 
     // Otherwise, just snap the scroll back into starting position
     else {
-      snapScrollOffset(carousel, itemOffset, SNAP_ANIMATION_DURATION);
+      snapScrollOffset(carousel, SNAP_ANIMATION_DURATION);
     }
   };
 
@@ -303,13 +330,7 @@ function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
   if (newItemIndex < oldItemIndex) {
     container.insertBefore(container.lastElementChild, container.firstElementChild);
 
-    if (carousel.direction === 'horizontal') {
-      carousel.scrollOffset += carousel.itemOffset;
-    }
-
-    else {
-      carousel.scrollOffset += carousel.itemOffset;
-    }
+    carousel.scrollOffset += carousel.itemOffset;
 
     renderItem(carousel, container.firstElementChild, newItemIndex - 1);
 
@@ -325,13 +346,7 @@ function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
   else if (newItemIndex > oldItemIndex) {
     container.appendChild(container.firstElementChild);
 
-    if (carousel.direction === 'horizontal') {
-      carousel.scrollOffset -= carousel.itemOffset;
-    }
-
-    else {
-      carousel.scrollOffset -= carousel.itemOffset;
-    }
+    carousel.scrollOffset -= carousel.itemOffset;
 
     renderItem(carousel, container.lastElementChild, newItemIndex + 1);
 
@@ -356,7 +371,7 @@ function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
 function resetScrollOffset(carousel) {
   carousel.itemOffset = carousel.direction === 'horizontal' ?
     carousel.offsetWidth : carousel.offsetHeight;
-  carousel.scrollOffset = carousel.itemOffset;
+  carousel.scrollOffset = carousel.itemOffset + carousel.itemPadding;
 
   updateScrollOffset(carousel);
 }
@@ -381,21 +396,25 @@ function updateScrollOffset(carousel) {
  *
  * @private
  */
-function snapScrollOffset(carousel, targetOffset, duration, callback) {
+function snapScrollOffset(carousel, duration, callback) {
+  var targetOffset = carousel.itemOffset + carousel.itemPadding;
   var startOffset = carousel.scrollOffset;
   var deltaOffset = targetOffset - startOffset;
 
-  var startTime = Date.now();
-  var lastTime = startTime;
+  var startTime;
+  var lastTime;
 
-  var tick = function() {
+  var tick = function(time) {
 
     // Stop animation if scrolling begins before animation completes
     if (carousel.scrolling) {
       return;
     }
 
-    var time = Date.now();
+    if (!startTime) {
+      startTime = lastTime = time;
+    }
+
     var deltaTime = (time - lastTime) / duration;
 
     if (time - startTime < duration) {
@@ -419,7 +438,7 @@ function snapScrollOffset(carousel, targetOffset, duration, callback) {
     }
   };
 
-  tick(startTime);
+  window.requestAnimationFrame(tick);
 }
 
 /**
@@ -468,6 +487,25 @@ function renderItems(carousel) {
 }
 
 /**
+ *
+ *
+ * @private
+ */
+function getStyle(carousel, selector) {
+  var shadowRoot = carousel.shadowRoot;
+  var styleElement = shadowRoot.querySelector('style');
+  var cssRules = styleElement.sheet.cssRules;
+
+  for (var i = 0, length = cssRules.length; i < length; i++) {
+    if (cssRules[i].selectorText === selector) {
+      return cssRules[i].style;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Element prototype, extends from HTMLElement
  *
  * @type {Object}
@@ -503,6 +541,7 @@ proto.createdCallback = function() {
   styleHack(this);
   configureDirection(this);
   configureItemCount(this);
+  configureItemPadding(this);
   attachEventListeners(this);
 
   var self = this;
@@ -526,6 +565,9 @@ proto.attributeChangedCallback = function(attr, oldVal, newVal) {
       break;
     case 'item-count':
       configureItemCount(this);
+      break;
+    case 'item-padding':
+      configureItemPadding(this);
       break;
     case 'disabled':
       configureDisabled(this);
@@ -567,6 +609,32 @@ Object.defineProperty(proto, 'itemCount', {
     setTimeout(function() {
       renderItems(self);
     }, 1);
+  }
+});
+
+// Padding between items
+Object.defineProperty(proto, 'itemPadding', {
+  get: function() {
+    return this._itemPadding || 0;
+  },
+
+  set: function(value) {
+    if (this._itemPadding === value) {
+      return;
+    }
+
+    this._itemPadding = value;
+    this.setAttribute('item-padding', this._itemPadding);
+
+    var verticalStyle = getStyle(this,
+      '.gaia-carousel-container[data-direction="vertical"] > ' +
+      '.gaia-carousel-item-container');
+    var horizontalStyle = getStyle(this, '.gaia-carousel-item-container');
+
+    verticalStyle.marginBottom = this._itemPadding + 'px';
+    horizontalStyle.marginRight = this._itemPadding + 'px';
+
+    resetScrollOffset(this);
   }
 });
 
