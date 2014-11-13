@@ -65,10 +65,22 @@ suite('GaiaCarousel', function() {
     assert.isTrue(element.direction === GaiaCarousel.DIRECTION_HORIZONTAL);
   });
 
-  test('It should set `direction` to default `DIRECTION_VERTICAL`', function() {
+  test('It should set `direction` to `DIRECTION_VERTICAL`', function() {
     this.container.innerHTML = '<gaia-carousel direction="vertical"></gaia-carousel>';
     var element = this.container.firstElementChild;
     assert.isTrue(element.direction === GaiaCarousel.DIRECTION_VERTICAL);
+  });
+
+  test('It should set `itemPadding` to default `0`', function() {
+    this.container.innerHTML = '<gaia-carousel></gaia-carousel>';
+    var element = this.container.firstElementChild;
+    assert.isTrue(element.itemPadding === 0);
+  });
+
+  test('It should set `itemPadding` to `10`', function() {
+    this.container.innerHTML = '<gaia-carousel item-padding="10"></gaia-carousel>';
+    var element = this.container.firstElementChild;
+    assert.isTrue(element.itemPadding === 10);
   });
 
   test('It should add a Shadow DOM stylesheet to the root of the element', function() {
