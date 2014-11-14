@@ -96,9 +96,7 @@ function styleHack(carousel) {
   flex-flow: column nowrap;
 }
 .gaia-carousel-item-container {
-  display: block;
   flex-shrink: 0;
-  position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -326,6 +324,9 @@ function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
   var container = carousel.container;
   var element;
 
+  setPreviousItemVisible(carousel, true);
+  setNextItemVisible(carousel, true);
+
   // Move last element to the start
   if (newItemIndex < oldItemIndex) {
     container.insertBefore(container.lastElementChild, container.firstElementChild);
@@ -382,13 +383,56 @@ function resetScrollOffset(carousel) {
  * @private
  */
 function updateScrollOffset(carousel) {
+  var scrollOffset = carousel.scrollOffset;
+  var itemOffsetWithPadding = carousel.itemOffset + carousel.itemPadding;
+
+  // If we're scrolling towards the next item in the carousel,
+  // explicitly hide the previous item for maximum performance.
+  setPreviousItemVisible(carousel, scrollOffset < itemOffsetWithPadding);
+
+  // If we're scrolling towards the previous item in the carousel,
+  // explicitly hide the next item for maximum performance.
+  setNextItemVisible(carousel, scrollOffset > itemOffsetWithPadding);
+
   if (carousel.direction === 'horizontal') {
-    carousel.container.scrollLeft = carousel.scrollOffset;
+    carousel.container.scrollLeft = scrollOffset;
   }
 
   else {
-    carousel.container.scrollTop = carousel.scrollOffset;
+    carousel.container.scrollTop = scrollOffset;
   }
+}
+
+/**
+ * Explicitly hides the previous item in the carousel to prevent
+ * the layer from painting. #PERF
+ *
+ * @private
+ */
+function setPreviousItemVisible(carousel, visible) {
+  if (carousel._previousItemVisibile === visible) {
+    return;
+  }
+
+  carousel.container.firstElementChild.style.visibility =
+    visible ? 'visible' : 'hidden';
+  carousel._previousItemVisibile = visible;
+}
+
+/**
+ * Explicitly hides the next item in the carousel to prevent
+ * the layer from painting. #PERF
+ *
+ * @private
+ */
+function setNextItemVisible(carousel, visible) {
+  if (carousel._nextItemVisibile === visible) {
+    return;
+  }
+
+  carousel.container.lastElementChild.style.visibility =
+    visible ? 'visible' : 'hidden';
+  carousel._nextItemVisibile = visible;
 }
 
 /**
@@ -543,11 +587,7 @@ proto.createdCallback = function() {
   configureItemCount(this);
   configureItemPadding(this);
   attachEventListeners(this);
-
-  var self = this;
-  setTimeout(function() {
-    resetScrollOffset(self);
-  }, 1);
+  resetScrollOffset(this);
 
   this.initialized = true;
 };
@@ -653,8 +693,7 @@ Object.defineProperty(proto, 'disabled', {
     if (this._disabled) {
       this.setAttribute('disabled', true);
 
-      this.scrollOffset = this.itemOffset;
-      updateScrollOffset(this);
+      resetScrollOffset(this);
     } else {
       this.removeAttribute('disabled');
     }
