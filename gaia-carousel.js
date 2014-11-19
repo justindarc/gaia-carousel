@@ -276,33 +276,17 @@ function attachEventListeners(carousel) {
 
     carousel.scrolling = false;
 
-    // Dispatch `change` event
-    if (carousel.itemIndex !== newItemIndex) {
-
-      // Update `itemIndex` and shift items in the DOM
-      updateItemIndex(carousel, carousel.itemIndex, newItemIndex);
-
-      carousel.dispatchEvent(new CustomEvent('changing', {
-        detail: {
-          oldItemIndex: oldItemIndex,
-          newItemIndex: newItemIndex
-        }
-      }));
-
-      snapScrollOffset(carousel, SNAP_ANIMATION_DURATION, function() {
-        carousel.dispatchEvent(new CustomEvent('changed', {
-          detail: {
-            oldItemIndex: oldItemIndex,
-            newItemIndex: newItemIndex
-          }
-        }));
-      });
+    if (newItemIndex > oldItemIndex) {
+      carousel.next();
+      return;
     }
 
-    // Otherwise, just snap the scroll back into starting position
-    else {
-      snapScrollOffset(carousel, SNAP_ANIMATION_DURATION);
+    if (newItemIndex < oldItemIndex) {
+      carousel.previous();
+      return;
     }
+
+    snapScrollOffset(carousel, SNAP_ANIMATION_DURATION);
   };
 
   var onResize = function(evt) {
@@ -320,48 +304,56 @@ function attachEventListeners(carousel) {
  *
  * @private
  */
-function updateItemIndex(carousel, oldItemIndex, newItemIndex) {
-  var container = carousel.container;
-  var element;
+function animate(carousel, direction) {
+  var oldItemIndex = carousel.itemIndex;
+  var newItemIndex = clamp(0, carousel.itemCount - 1, carousel.itemIndex + direction);
 
-  setPreviousItemVisible(carousel, true);
-  setNextItemVisible(carousel, true);
-
-  // Move last element to the start
-  if (newItemIndex < oldItemIndex) {
-    container.insertBefore(container.lastElementChild, container.firstElementChild);
-
-    carousel.scrollOffset += carousel.itemOffset;
-
-    renderItem(carousel, container.firstElementChild, newItemIndex - 1);
-
-    carousel.dispatchEvent(new CustomEvent('willresetitem', {
-      detail: {
-        index: oldItemIndex,
-        element: container.lastElementChild
-      }
-    }));
+  if (oldItemIndex === newItemIndex) {
+    return;
   }
 
-  // Move first element to the end
-  else if (newItemIndex > oldItemIndex) {
+  var container = carousel.container;
+
+  if (direction === 1) {
+    setNextItemVisible(carousel, true);
     container.appendChild(container.firstElementChild);
 
     carousel.scrollOffset -= carousel.itemOffset;
 
-    renderItem(carousel, container.lastElementChild, newItemIndex + 1);
+    renderItem(carousel, container.lastElementChild, newItemIndex + direction);
+  } else {
+    setPreviousItemVisible(carousel, true);
+    container.insertBefore(container.lastElementChild, container.firstElementChild);
+    
+    carousel.scrollOffset += carousel.itemOffset;
 
-    carousel.dispatchEvent(new CustomEvent('willresetitem', {
-      detail: {
-        index: oldItemIndex,
-        element: container.firstElementChild
-      }
-    }));
+    renderItem(carousel, container.firstElementChild, newItemIndex + direction);
   }
 
-  carousel.itemIndex = newItemIndex;
+  carousel.dispatchEvent(new CustomEvent('willresetitem', {
+    detail: {
+      index: oldItemIndex,
+      element: container.firstElementChild
+    }
+  }));
 
-  updateScrollOffset(carousel);
+  carousel.dispatchEvent(new CustomEvent('changing', {
+    detail: {
+      oldItemIndex: oldItemIndex,
+      newItemIndex: newItemIndex
+    }
+  }));
+
+  carousel._itemIndex = newItemIndex;
+
+  snapScrollOffset(carousel, SNAP_ANIMATION_DURATION, () => {
+    carousel.dispatchEvent(new CustomEvent('changed', {
+      detail: {
+        oldItemIndex: oldItemIndex,
+        newItemIndex: newItemIndex
+      }
+    }));
+  });
 }
 
 /**
@@ -556,6 +548,14 @@ function getStyle(carousel, selector) {
  */
 var proto = Object.create(HTMLElement.prototype);
 
+proto.previous = function() {
+  animate(this, -1);
+};
+
+proto.next = function() {
+  animate(this, 1);
+};
+
 /**
  * Called when the element is first created.
  *
@@ -618,14 +618,30 @@ proto.attributeChangedCallback = function(attr, oldVal, newVal) {
 // Flag indicating if scrolling is in-progress
 proto.scrolling = false;
 
-// Index of current item
-proto.itemIndex = 0;
-
 // Item width/height
 proto.itemOffset = 0;
 
 // Container scrollLeft/scrollTop
 proto.scrollOffset = 0;
+
+// Index of current item
+Object.defineProperty(proto, 'itemIndex', {
+  get: function() {
+    return this._itemIndex || 0;
+  },
+
+  set: function(value) {
+    if (this._itemIndex === value) {
+      return;
+    }
+
+    this._itemIndex = value;
+
+    setTimeout(() => {
+      renderItems(this);
+    }, 1);
+  }
+});
 
 // Number of items
 Object.defineProperty(proto, 'itemCount', {
@@ -645,10 +661,7 @@ Object.defineProperty(proto, 'itemCount', {
       return;
     }
 
-    var self = this;
-    setTimeout(function() {
-      renderItems(self);
-    }, 1);
+    this.itemIndex = 0;
   }
 });
 

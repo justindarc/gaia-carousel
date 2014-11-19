@@ -301,4 +301,23 @@ suite('GaiaCarousel', function() {
     });
   });
 
+  test('It should dispatch "willrenderitem" event when setting `itemIndex`', function(done) {
+    this.container.innerHTML =
+      '<gaia-carousel>' +
+        '<div></div>' +
+      '</gaia-carousel>';
+
+    var element = this.container.firstElementChild;
+    element.addEventListener('willrenderitem', function onWillRenderItem(evt) {
+      element.removeEventListener('willrenderitem', onWillRenderItem);
+
+      element.addEventListener('willrenderitem', function(evt) {
+        assert.ok(evt);
+        done();
+      });
+
+      element.itemIndex = 1;
+    });
+  });
+
 });
