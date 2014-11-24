@@ -91,6 +91,7 @@ function styleHack(carousel) {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  scroll-behavior: smooth;
 }
 .gaia-carousel-container[data-direction="vertical"] {
   flex-flow: column nowrap;
@@ -226,7 +227,7 @@ function attachEventListeners(carousel) {
 
     carousel.scrollOffset += deltaOffset;
 
-    window.requestAnimationFrame(function() {
+    window.requestAnimationFrame(() => {
       updateScrollOffset(carousel);
     });
 
@@ -286,7 +287,8 @@ function attachEventListeners(carousel) {
       return;
     }
 
-    snapScrollOffset(carousel, SNAP_ANIMATION_DURATION);
+    var targetScrollOffset = carousel.itemOffset + carousel.itemPadding;
+    snapScrollOffset(carousel, targetScrollOffset, SNAP_ANIMATION_DURATION);
   };
 
   var onResize = function(evt) {
@@ -313,7 +315,7 @@ function animate(carousel, direction) {
   }
 
   var container = carousel.container;
-
+  
   if (direction === 1) {
     setNextItemVisible(carousel, true);
     container.appendChild(container.firstElementChild);
@@ -330,29 +332,34 @@ function animate(carousel, direction) {
     renderItem(carousel, container.firstElementChild, newItemIndex + direction);
   }
 
-  carousel.dispatchEvent(new CustomEvent('willresetitem', {
-    detail: {
-      index: oldItemIndex,
-      element: container.firstElementChild
-    }
-  }));
+  updateScrollOffset(carousel);
 
-  carousel.dispatchEvent(new CustomEvent('changing', {
-    detail: {
-      oldItemIndex: oldItemIndex,
-      newItemIndex: newItemIndex
-    }
-  }));
+  window.requestAnimationFrame(() => {
+    carousel.dispatchEvent(new CustomEvent('willresetitem', {
+      detail: {
+        index: oldItemIndex,
+        element: container.firstElementChild
+      }
+    }));
 
-  carousel._itemIndex = newItemIndex;
-
-  snapScrollOffset(carousel, SNAP_ANIMATION_DURATION, () => {
-    carousel.dispatchEvent(new CustomEvent('changed', {
+    carousel.dispatchEvent(new CustomEvent('changing', {
       detail: {
         oldItemIndex: oldItemIndex,
         newItemIndex: newItemIndex
       }
     }));
+
+    carousel._itemIndex = newItemIndex;
+  
+    var targetScrollOffset = carousel.itemOffset + carousel.itemPadding;
+    snapScrollOffset(carousel, targetScrollOffset, SNAP_ANIMATION_DURATION, () => {
+      carousel.dispatchEvent(new CustomEvent('changed', {
+        detail: {
+          oldItemIndex: oldItemIndex,
+          newItemIndex: newItemIndex
+        }
+      }));
+    });
   });
 }
 
@@ -387,11 +394,11 @@ function updateScrollOffset(carousel) {
   setNextItemVisible(carousel, scrollOffset > itemOffsetWithPadding);
 
   if (carousel.direction === 'horizontal') {
-    carousel.container.scrollLeft = scrollOffset;
+    carousel.container.scrollTo(scrollOffset, 0);
   }
 
   else {
-    carousel.container.scrollTop = scrollOffset;
+    carousel.container.scrollTo(0, scrollOffset);
   }
 }
 
@@ -432,10 +439,9 @@ function setNextItemVisible(carousel, visible) {
  *
  * @private
  */
-function snapScrollOffset(carousel, duration, callback) {
-  var targetOffset = carousel.itemOffset + carousel.itemPadding;
+function snapScrollOffset(carousel, scrollOffset, duration, callback) {
   var startOffset = carousel.scrollOffset;
-  var deltaOffset = targetOffset - startOffset;
+  var deltaOffset = scrollOffset - startOffset;
 
   var startTime;
   var lastTime;
@@ -458,19 +464,22 @@ function snapScrollOffset(carousel, duration, callback) {
       
       carousel.scrollOffset += deltaOffset * deltaTime;
 
-      updateScrollOffset(carousel);
-
-      window.requestAnimationFrame(tick);
+      window.requestAnimationFrame((time) => {
+        updateScrollOffset(carousel);
+        tick(time);
+      })
     }
 
     else {
-      carousel.scrollOffset = targetOffset;
+      carousel.scrollOffset = scrollOffset;
 
-      updateScrollOffset(carousel);
+      window.requestAnimationFrame(() => {
+        updateScrollOffset(carousel);
 
-      if (typeof callback === 'function') {
-        callback();
-      }
+        if (typeof callback === 'function') {
+          callback();
+        }
+      });
     }
   };
 
@@ -554,6 +563,10 @@ proto.previous = function() {
 
 proto.next = function() {
   animate(this, 1);
+};
+
+proto.refresh = function() {
+  renderItems(this);
 };
 
 /**
