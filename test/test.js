@@ -59,16 +59,16 @@ suite('GaiaCarousel', function() {
     assert.isTrue(element.itemCount === 1);
   });
 
-  test('It should set `direction` to default `DIRECTION_HORIZONTAL`', function() {
+  test('It should set `layout` to default `LAYOUT_HORIZONTAL`', function() {
     this.container.innerHTML = '<gaia-carousel></gaia-carousel>';
     var element = this.container.firstElementChild;
-    assert.isTrue(element.direction === GaiaCarousel.DIRECTION_HORIZONTAL);
+    assert.isTrue(element.layout === GaiaCarousel.LAYOUT_HORIZONTAL);
   });
 
-  test('It should set `direction` to `DIRECTION_VERTICAL`', function() {
-    this.container.innerHTML = '<gaia-carousel direction="vertical"></gaia-carousel>';
+  test('It should set `layout` to `LAYOUT_VERTICAL`', function() {
+    this.container.innerHTML = '<gaia-carousel layout="vertical"></gaia-carousel>';
     var element = this.container.firstElementChild;
-    assert.isTrue(element.direction === GaiaCarousel.DIRECTION_VERTICAL);
+    assert.isTrue(element.layout === GaiaCarousel.LAYOUT_VERTICAL);
   });
 
   test('It should set `itemPadding` to default `0`', function() {
@@ -159,7 +159,7 @@ suite('GaiaCarousel', function() {
 
   test('It should dispatch a "changing" event on vertical flick gesture', function(done) {
     this.container.innerHTML =
-      '<gaia-carousel direction="vertical">' +
+      '<gaia-carousel layout="vertical">' +
         '<div></div>' +
         '<div></div>' +
       '</gaia-carousel>' +
@@ -211,7 +211,7 @@ suite('GaiaCarousel', function() {
 
   test('It should dispatch a "changed" event on vertical flick gesture', function(done) {
     this.container.innerHTML =
-      '<gaia-carousel direction="vertical">' +
+      '<gaia-carousel layout="vertical">' +
         '<div></div>' +
         '<div></div>' +
       '</gaia-carousel>' +
@@ -250,27 +250,31 @@ suite('GaiaCarousel', function() {
     var element = this.container.firstElementChild;
     assert.equal(element.itemIndex, 0);
 
-    // Flick left (x: 200 -> 100)
-    triggerTouchEvent(element.shadowRoot, 'touchstart', 200, 0);
-    triggerTouchEvent(window, 'touchmove', 100, 0);
-    triggerTouchEvent(window, 'touchend');
-    assert.equal(element.itemIndex, 1);
-    
-    element.addEventListener('changed', function onChanged() {
-      element.removeEventListener('changed', onChanged);
+    element.addEventListener('changed', function onFirstChanged() {
+      element.removeEventListener('changed', onFirstChanged);
+      assert.equal(element.itemIndex, 1);
+      
+      element.addEventListener('changed', function onSecondChanged() {
+        element.removeEventListener('changed', onSecondChanged);
+        assert.equal(element.itemIndex, 0);
+        done();
+      });
 
       // Flick right (x: 100 -> 200)
       triggerTouchEvent(element.shadowRoot, 'touchstart', 100, 0);
       triggerTouchEvent(window, 'touchmove', 200, 0);
       triggerTouchEvent(window, 'touchend');
-      assert.equal(element.itemIndex, 0);
-      done();
     });
+
+    // Flick left (x: 200 -> 100)
+    triggerTouchEvent(element.shadowRoot, 'touchstart', 200, 0);
+    triggerTouchEvent(window, 'touchmove', 100, 0);
+    triggerTouchEvent(window, 'touchend');
   });
 
-  test('It should increment/decrement `itemIndex` value on vertical flick gesture', function(done) {
+  test('It should increment/decrement `itemIndex` value on horizontal flick gesture [dir="rtl"]', function(done) {
     this.container.innerHTML =
-      '<gaia-carousel direction="vertical">' +
+      '<gaia-carousel dir="rtl">' +
         '<div></div>' +
         '<div></div>' +
       '</gaia-carousel>' +
@@ -283,22 +287,63 @@ suite('GaiaCarousel', function() {
     var element = this.container.firstElementChild;
     assert.equal(element.itemIndex, 0);
 
-    // Flick left (y: 200 -> 100)
-    triggerTouchEvent(element.shadowRoot, 'touchstart', 0, 200);
-    triggerTouchEvent(window, 'touchmove', 0, 100);
-    triggerTouchEvent(window, 'touchend');
-    assert.equal(element.itemIndex, 1);
-    
-    element.addEventListener('changed', function onChanged() {
-      element.removeEventListener('changed', onChanged);
+    element.addEventListener('changed', function onFirstChanged() {
+      element.removeEventListener('changed', onFirstChanged);
+      assert.equal(element.itemIndex, 1);
+      
+      element.addEventListener('changed', function onSecondChanged() {
+        element.removeEventListener('changed', onSecondChanged);
+        assert.equal(element.itemIndex, 0);
+        done();
+      });
 
-      // Flick right (y: 100 -> 200)
+      // Flick left (x: 200 -> 100)
+      triggerTouchEvent(element.shadowRoot, 'touchstart', 200, 0);
+      triggerTouchEvent(window, 'touchmove', 100, 0);
+      triggerTouchEvent(window, 'touchend');
+    });
+
+    // Flick right (x: 100 -> 200)
+    triggerTouchEvent(element.shadowRoot, 'touchstart', 100, 0);
+    triggerTouchEvent(window, 'touchmove', 200, 0);
+    triggerTouchEvent(window, 'touchend');
+  });
+
+  test('It should increment/decrement `itemIndex` value on vertical flick gesture', function(done) {
+    this.container.innerHTML =
+      '<gaia-carousel layout="vertical">' +
+        '<div></div>' +
+        '<div></div>' +
+      '</gaia-carousel>' +
+      '<style>' +
+        'gaia-carousel {' +
+          'width: 300px;' +
+          'height: 150px;' +
+        '}' +
+      '</style>';
+    var element = this.container.firstElementChild;
+    assert.equal(element.itemIndex, 0);
+
+    element.addEventListener('changed', function onFirstChanged() {
+      element.removeEventListener('changed', onFirstChanged);
+      assert.equal(element.itemIndex, 1);
+      
+      element.addEventListener('changed', function onSecondChanged() {
+        element.removeEventListener('changed', onSecondChanged);
+        assert.equal(element.itemIndex, 0);
+        done();
+      });
+
+      // Flick down (y: 100 -> 200)
       triggerTouchEvent(element.shadowRoot, 'touchstart', 0, 100);
       triggerTouchEvent(window, 'touchmove', 0, 200);
       triggerTouchEvent(window, 'touchend');
-      assert.equal(element.itemIndex, 0);
-      done();
     });
+
+    // Flick up (y: 200 -> 100)
+    triggerTouchEvent(element.shadowRoot, 'touchstart', 0, 200);
+    triggerTouchEvent(window, 'touchmove', 0, 100);
+    triggerTouchEvent(window, 'touchend');
   });
 
   test('It should dispatch "willrenderitem" event when setting `itemIndex`', function(done) {

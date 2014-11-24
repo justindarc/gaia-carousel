@@ -29,6 +29,7 @@ media.addEventListener('willrenderitem', function(evt) {
   var frame = element.frame;
   if (!frame) {
     frame = element.frame = document.createElement('div');
+    frame.dir = 'ltr';
     frame.addEventListener('touchstart', function(evt) {
       media.disabled = media.disabled || evt.touches.length > 1;
     });
