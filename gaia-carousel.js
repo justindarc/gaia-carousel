@@ -31,7 +31,7 @@ template.innerHTML =
   <div class="gaia-carousel-item-container"></div>
 </div>
 <style scoped>
-  .gaia-carousel-container[data-direction="vertical"] > .gaia-carousel-item-container {
+  .gaia-carousel-container[data-layout="vertical"] > .gaia-carousel-item-container {
     margin-bottom: 0;
     margin-right: 0;
   }
@@ -91,9 +91,8 @@ function styleHack(carousel) {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  scroll-behavior: smooth;
 }
-.gaia-carousel-container[data-direction="vertical"] {
+.gaia-carousel-container[data-layout="vertical"] {
   flex-flow: column nowrap;
 }
 .gaia-carousel-item-container {
@@ -127,12 +126,27 @@ function styleHack(carousel) {
  *
  * @private
  */
-function configureDirection(carousel) {
-  var direction = carousel.getAttribute('direction') === 'vertical' ?
+function configureDir(carousel) {
+  var dirAttr = carousel.getAttribute('dir');
+  var dir = dirAttr === 'ltr' || dirAttr === 'rtl' ? dirAttr :
+    (document.documentElement.getAttribute('dir') || 'ltr');
+  if (carousel.dir !== dir) {
+    carousel.container.setAttribute('dir', dir);
+    carousel.dir = dir;
+  }
+}
+
+/**
+ *
+ *
+ * @private
+ */
+function configureLayout(carousel) {
+  var layout = carousel.getAttribute('layout') === 'vertical' ?
     'vertical' : 'horizontal';
-  if (carousel.direction !== direction) {
-    carousel.container.setAttribute('data-direction', direction);
-    carousel.direction = direction;
+  if (carousel.layout !== layout) {
+    carousel.container.setAttribute('data-layout', layout);
+    carousel.layout = layout;
   }
 }
 
@@ -201,7 +215,7 @@ function attachEventListeners(carousel) {
     }
 
     var position = evt.type.indexOf('mouse') !== -1 ? evt : evt.touches[0];
-    lastOffset = carousel.direction === 'horizontal' ? position.pageX : position.pageY;    
+    lastOffset = carousel.layout === 'horizontal' ? position.pageX : position.pageY;    
     startAccelerateTimeStamp = evt.timeStamp;
     startAccelerateOffset = carousel.scrollOffset;
 
@@ -212,8 +226,6 @@ function attachEventListeners(carousel) {
     window.addEventListener('mouseup', onTouchEnd);
 
     carousel.scrolling = true;
-
-    evt.preventDefault();
   };
 
   var onTouchMove = function(evt) {
@@ -222,8 +234,13 @@ function attachEventListeners(carousel) {
     }
 
     var position = (evt.type.indexOf('mouse') !== -1) ? evt : evt.touches[0];
-    var currentOffset = (carousel.direction === 'horizontal') ? position.pageX : position.pageY;
+    var currentOffset = (carousel.layout === 'horizontal') ? position.pageX : position.pageY;
     var deltaOffset = lastOffset - currentOffset;
+
+    // Handle Right-To-Left locales.
+    if (carousel.dir === 'rtl' && carousel.layout === 'horizontal') {
+      deltaOffset = -deltaOffset;
+    }
 
     carousel.scrollOffset += deltaOffset;
 
@@ -369,7 +386,7 @@ function animate(carousel, direction) {
  * @private
  */
 function resetScrollOffset(carousel) {
-  carousel.itemOffset = carousel.direction === 'horizontal' ?
+  carousel.itemOffset = carousel.layout === 'horizontal' ?
     carousel.offsetWidth : carousel.offsetHeight;
   carousel.scrollOffset = carousel.itemOffset + carousel.itemPadding;
 
@@ -393,12 +410,17 @@ function updateScrollOffset(carousel) {
   // explicitly hide the next item for maximum performance.
   setNextItemVisible(carousel, scrollOffset > itemOffsetWithPadding);
 
-  if (carousel.direction === 'horizontal') {
-    carousel.container.scrollTo(scrollOffset, 0);
+  // Handle Right-To-Left locales.
+  if (carousel.dir === 'rtl' && carousel.layout === 'horizontal') {
+    scrollOffset = -scrollOffset - carousel.itemPadding;
+  }
+
+  if (carousel.layout === 'horizontal') {
+    carousel.container.scrollTo({ left: scrollOffset, top: 0 });
   }
 
   else {
-    carousel.container.scrollTo(0, scrollOffset);
+    carousel.container.scrollTo({ left: 0, top: scrollOffset });
   }
 }
 
@@ -551,6 +573,28 @@ function getStyle(carousel, selector) {
 }
 
 /**
+ *
+ *
+ * @private
+ */
+function observeDir(carousel) {
+  var observer = new MutationObserver(onAttributeChanged);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['dir']
+  });
+
+  function onAttributeChanged(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.attributeName === 'dir') {
+        configureDir(carousel);
+        resetScrollOffset(carousel);
+      }
+    });
+  }
+}
+
+/**
  * Element prototype, extends from HTMLElement
  *
  * @type {Object}
@@ -596,7 +640,9 @@ proto.createdCallback = function() {
   shadow.appendChild(tmpl);
 
   styleHack(this);
-  configureDirection(this);
+  observeDir(this);
+  configureDir(this);
+  configureLayout(this);
   configureItemCount(this);
   configureItemPadding(this);
   attachEventListeners(this);
@@ -613,8 +659,11 @@ proto.createdCallback = function() {
  */
 proto.attributeChangedCallback = function(attr, oldVal, newVal) {
   switch (attr) {
-    case 'direction':
-      configureDirection(this);
+    case 'dir':
+      configureDir(this);
+      break;
+    case 'layout':
+      configureLayout(this);
       break;
     case 'item-count':
       configureItemCount(this);
@@ -636,6 +685,24 @@ proto.itemOffset = 0;
 
 // Container scrollLeft/scrollTop
 proto.scrollOffset = 0;
+
+// Locale direction
+Object.defineProperty(proto, 'dir', {
+  get: function() {
+    return this._dir || 'ltr';
+  },
+
+  set: function(value) {
+    if (this._dir === value) {
+      return;
+    }
+
+    this._dir = value;
+    this.container.setAttribute('dir', this._dir);
+
+    resetScrollOffset(this);
+  }
+});
 
 // Index of current item
 Object.defineProperty(proto, 'itemIndex', {
@@ -693,7 +760,7 @@ Object.defineProperty(proto, 'itemPadding', {
     this.setAttribute('item-padding', this._itemPadding);
 
     var verticalStyle = getStyle(this,
-      '.gaia-carousel-container[data-direction="vertical"] > ' +
+      '.gaia-carousel-container[data-layout="vertical"] > ' +
       '.gaia-carousel-item-container');
     var horizontalStyle = getStyle(this, '.gaia-carousel-item-container');
 
@@ -728,8 +795,8 @@ Object.defineProperty(proto, 'disabled', {
 
 var GaiaCarousel = document.registerElement('gaia-carousel', { prototype: proto });
 
-GaiaCarousel.DIRECTION_HORIZONTAL = 'horizontal';
-GaiaCarousel.DIRECTION_VERTICAL = 'vertical';
+GaiaCarousel.LAYOUT_HORIZONTAL = 'horizontal';
+GaiaCarousel.LAYOUT_VERTICAL = 'vertical';
 
 // Export the constructor and expose
 // the `prototype` (Bug 1048339).
